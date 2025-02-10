@@ -1,6 +1,6 @@
 """Constants for the Volcano TTS integration."""
 
-DOMAIN = "volcano_tts"
+DOMAIN = "volcano_audio"
 
 CONF_APPID = "appid"
 CONF_ACCESS_TOKEN = "access_token"
