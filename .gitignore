@@ -1,0 +1,9 @@
+.DS_Store
+custom_components/google_cloud
+custom_components/streaming_asr_demo.py
+custom_components/stt                   
+custom_components/tts
+custom_components/tts_http_demo.py
+custom_components/tts_websocket_demo.py
+custom_components/wyoming
+*.mp3

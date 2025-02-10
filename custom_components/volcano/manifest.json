@@ -1,0 +1,11 @@
+{
+  "domain": "volcano_tts",
+  "name": "Volcano TTS",
+  "codeowners": [],
+  "config_flow": true,
+  "documentation": "",
+  "integration_type": "service",
+  "iot_class": "cloud_push",
+  "requirements": ["requests>=2.28.0"],
+  "version": "1.0.0"
+}
