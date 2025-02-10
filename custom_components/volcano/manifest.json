@@ -1,6 +1,6 @@
 {
-  "domain": "volcano_tts",
-  "name": "Volcano TTS",
+  "domain": "volcano_audio",
+  "name": "Volcano Audio",
   "codeowners": [],
   "config_flow": true,
   "documentation": "",

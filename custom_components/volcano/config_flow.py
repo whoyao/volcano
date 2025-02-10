@@ -14,8 +14,11 @@ from .const import (
     DOMAIN,
     CONF_APPID,
     CONF_ACCESS_TOKEN,
-    CONF_CLUSTER,
+    CONF_HOST,
+    CONF_TTS_CLUSTER,
+    CONF_STT_CLUSTER,
     CONF_VOICE_TYPE,
+    DEFAULT_HOST,
     DEFAULT_VOICE_TYPE,
 )
 
@@ -24,7 +27,9 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Required(CONF_NAME): str,
         vol.Required(CONF_APPID): str,
         vol.Required(CONF_ACCESS_TOKEN): str,
-        vol.Required(CONF_CLUSTER): str,
+        vol.Required(CONF_TTS_CLUSTER): str,
+        vol.Required(CONF_STT_CLUSTER): str,
+        vol.Optional(CONF_HOST, default=DEFAULT_HOST): str,
         vol.Optional(CONF_VOICE_TYPE, default=DEFAULT_VOICE_TYPE): str,
     }
 )
@@ -34,7 +39,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     # TODO: Add validation logic here if needed
     return {"title": data[CONF_NAME]}
 
-class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class VolcanoConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Volcano TTS."""
 
     VERSION = 1
