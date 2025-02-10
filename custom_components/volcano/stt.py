@@ -17,7 +17,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import (
     CONF_ACCESS_TOKEN,
     CONF_APPID,
-    CONF_CLUSTER,
+    CONF_STT_CLUSTER,
     DEFAULT_HOST,
     DOMAIN,
 )

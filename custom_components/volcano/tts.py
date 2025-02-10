@@ -18,7 +18,7 @@ from .const import (
     API_ENDPOINT,
     CONF_ACCESS_TOKEN,
     CONF_APPID,
-    CONF_CLUSTER,
+    CONF_TTS_CLUSTER,
     CONF_VOICE_TYPE,
     DOMAIN,
 )
