@@ -53,12 +53,12 @@ class VolcanoTtsProvider(tts.TextToSpeechEntity):
     @property
     def default_language(self) -> str:
         """Return the default language."""
-        return "zh-CN"
+        return "zh-cn"
 
     @property
     def supported_languages(self) -> list[str]:
         """Return list of supported languages."""
-        return ["zh-CN"]
+        return ["zh-cn", "zh-hk", "zh-tw", "en"]
 
     @property
     def supported_options(self) -> list[str]:
