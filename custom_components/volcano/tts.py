@@ -7,7 +7,7 @@ import logging
 import uuid
 from typing import Any
 
-import requests
+import aiohttp
 from homeassistant.components import tts
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_NAME
@@ -106,20 +106,21 @@ class VolcanoTtsProvider(tts.TextToSpeechEntity):
         headers = {"Authorization": f"Bearer;{self.config_entry.data[CONF_ACCESS_TOKEN]}"}
 
         try:
-            response = requests.post(
-                API_ENDPOINT,
-                data=json.dumps(request_data),
-                headers=headers,
-            )
-            response.raise_for_status()
-            data = response.json()
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    API_ENDPOINT,
+                    json=request_data,
+                    headers=headers,
+                ) as response:
+                    response.raise_for_status()
+                    data = await response.json()
 
-            if "data" not in data:
-                _LOGGER.error("Error getting TTS: %s", data)
-                return None, None
+                    if "data" not in data:
+                        _LOGGER.error("Error getting TTS: %s", data)
+                        return None, None
 
-            audio_data = base64.b64decode(data["data"])
-            return "mp3", audio_data
+                    audio_data = base64.b64decode(data["data"])
+                    return "mp3", audio_data
 
         except Exception as err:
             _LOGGER.error("Error getting TTS: %s", err)
