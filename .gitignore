@@ -1,5 +1,6 @@
 .DS_Store
 custom_components/google_cloud
+custom_components/google_translate
 custom_components/streaming_asr_demo.py
 custom_components/stt                   
 custom_components/tts

@@ -80,8 +80,8 @@ class VolcanoTtsProvider(tts.TextToSpeechEntity):
         request_data = {
             "app": {
                 "appid": self.config_entry.data[CONF_APPID],
-                "token": "access_token",
-                "cluster": self.config_entry.data[CONF_CLUSTER],
+                "token": self.config_entry.data[CONF_ACCESS_TOKEN],
+                "cluster": self.config_entry.data[CONF_TTS_CLUSTER],
             },
             "user": {
                 "uid": str(uuid.uuid4()),
