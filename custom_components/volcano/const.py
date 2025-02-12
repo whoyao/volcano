@@ -11,5 +11,7 @@ CONF_HOST = "host_url"
 
 DEFAULT_HOST = "openspeech.bytedance.com"
 DEFAULT_VOICE_TYPE = "BV005_streaming"
+DEFAULT_TTS_CLUSTER = "volcano_tts"
+DEFAULT_STT_CLUSTER = "volcengine_input_common"
 
 API_ENDPOINT = "https://openspeech.bytedance.com/api/v1/tts"

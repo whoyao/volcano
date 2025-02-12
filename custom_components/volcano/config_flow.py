@@ -20,6 +20,8 @@ from .const import (
     CONF_VOICE_TYPE,
     DEFAULT_HOST,
     DEFAULT_VOICE_TYPE,
+    DEFAULT_TTS_CLUSTER,
+    DEFAULT_STT_CLUSTER,
 )
 
 CONFIG_SCHEMA = vol.Schema(
@@ -27,8 +29,8 @@ CONFIG_SCHEMA = vol.Schema(
         vol.Required(CONF_NAME): str,
         vol.Required(CONF_APPID): str,
         vol.Required(CONF_ACCESS_TOKEN): str,
-        vol.Required(CONF_TTS_CLUSTER): str,
-        vol.Required(CONF_STT_CLUSTER): str,
+        vol.Optional(CONF_TTS_CLUSTER, default=DEFAULT_TTS_CLUSTER): str,
+        vol.Optional(CONF_STT_CLUSTER, default=DEFAULT_STT_CLUSTER): str,
         vol.Optional(CONF_HOST, default=DEFAULT_HOST): str,
         vol.Optional(CONF_VOICE_TYPE, default=DEFAULT_VOICE_TYPE): str,
     }

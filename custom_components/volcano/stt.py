@@ -9,9 +9,20 @@ from typing import Any
 
 import websockets
 
-from homeassistant.components import stt
+from homeassistant.components.stt import (
+    AudioBitRates,
+    AudioChannels,
+    AudioCodecs,
+    AudioFormats,
+    AudioSampleRates,
+    SpeechMetadata,
+    SpeechResult,
+    SpeechResultState,
+    SpeechToTextEntity,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
@@ -28,8 +39,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Volcano STT platform."""
-    provider = VolcanoSttProvider(config_entry)
-    async_add_entities([provider])
+    async_add_entities([VolcanoSpeechToTextEntity(config_entry)])
 
 # Protocol constants
 PROTOCOL_VERSION = 0b0001
@@ -40,14 +50,22 @@ NEG_SEQUENCE = 0b0010
 JSON_SERIALIZATION = 0b0001
 GZIP_COMPRESSION = 0b0001
 
-class VolcanoSttProvider(stt.Provider):
-    """Volcano speech-to-text provider."""
+class VolcanoSpeechToTextEntity(stt.SpeechToTextEntity):
+    """Volcano speech-to-text entity."""
 
     def __init__(self, entry: ConfigEntry) -> None:
-        """Initialize Volcano STT provider."""
-        self.entry = entry
-        self.ws_url = f"wss://{DEFAULT_HOST}/api/v2/asr"
-        self.success_code = 1000
+        """Initialize Volcano STT entity."""
+        self._attr_unique_id = f"{entry.entry_id}"
+        self._attr_name = entry.title
+        self._attr_device_info = dr.DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id)},
+            manufacturer="Volcano",
+            model="Cloud",
+            entry_type=dr.DeviceEntryType.SERVICE,
+        )
+        self._entry = entry
+        self._ws_url = f"wss://{DEFAULT_HOST}/api/v2/asr"
+        self._success_code = 1000
 
     @property
     def supported_languages(self) -> list[str]:
@@ -55,29 +73,29 @@ class VolcanoSttProvider(stt.Provider):
         return ["zh-CN", "en-US"]
 
     @property
-    def supported_formats(self) -> list[stt.AudioFormats]:
+    def supported_formats(self) -> list[AudioFormats]:
         """Return a list of supported formats."""
-        return [stt.AudioFormats.WAV, stt.AudioFormats.MP3]
+        return [AudioFormats.WAV, AudioFormats.MP3]
 
     @property
-    def supported_codecs(self) -> list[stt.AudioCodecs]:
+    def supported_codecs(self) -> list[AudioCodecs]:
         """Return a list of supported codecs."""
-        return [stt.AudioCodecs.PCM]
+        return [AudioCodecs.PCM]
 
     @property
-    def supported_bit_rates(self) -> list[stt.AudioBitRates]:
+    def supported_bit_rates(self) -> list[AudioBitRates]:
         """Return a list of supported bit rates."""
-        return [stt.AudioBitRates.BITRATE_16]
+        return [AudioBitRates.BITRATE_16]
 
     @property
-    def supported_sample_rates(self) -> list[stt.AudioSampleRates]:
+    def supported_sample_rates(self) -> list[AudioSampleRates]:
         """Return a list of supported sample rates."""
-        return [stt.AudioSampleRates.SAMPLERATE_16000]
+        return [AudioSampleRates.SAMPLERATE_16000]
 
     @property
-    def supported_channels(self) -> list[stt.AudioChannels]:
+    def supported_channels(self) -> list[AudioChannels]:
         """Return a list of supported channels."""
-        return [stt.AudioChannels.CHANNEL_MONO]
+        return [AudioChannels.CHANNEL_MONO]
 
     def _generate_header(
         self,
@@ -93,13 +111,13 @@ class VolcanoSttProvider(stt.Provider):
         header.append(0x00)  # reserved
         return header
 
-    def _construct_request(self, metadata: stt.SpeechMetadata) -> dict[str, Any]:
+    def _construct_request(self, metadata: SpeechMetadata) -> dict[str, Any]:
         """Construct the request payload."""
         return {
             "app": {
-                "appid": self.entry.data[CONF_APPID],
-                "cluster": self.entry.data[CONF_CLUSTER],
-                "token": self.entry.data[CONF_ACCESS_TOKEN],
+                "appid": self._entry.data[CONF_APPID],
+                "cluster": self._entry.data[CONF_STT_CLUSTER],
+                "token": self._entry.data[CONF_ACCESS_TOKEN],
             },
             "user": {"uid": "homeassistant"},
             "request": {
@@ -139,8 +157,8 @@ class VolcanoSttProvider(stt.Provider):
         return {}
 
     async def async_process_audio_stream(
-        self, metadata: stt.SpeechMetadata, stream: AsyncIterable[bytes]
-    ) -> stt.SpeechResult:
+        self, metadata: SpeechMetadata, stream: AsyncIterable[bytes]
+    ) -> SpeechResult:
         """Process an audio stream to STT service."""
         try:
             # Prepare initial request
@@ -152,20 +170,18 @@ class VolcanoSttProvider(stt.Provider):
             full_request.extend(len(payload).to_bytes(4, "big"))
             full_request.extend(payload)
 
-            headers = {"Authorization": f"Bearer; {self.entry.data[CONF_ACCESS_TOKEN]}"}
+            headers = {"Authorization": f"Bearer; {self._entry.data[CONF_ACCESS_TOKEN]}"}
 
             async with websockets.connect(
-                self.ws_url, additional_headers=headers, max_size=1000000000
+                self._ws_url, additional_headers=headers, max_size=1000000000
             ) as ws:
                 # Send initial request
                 await ws.send(full_request)
                 response = await ws.recv()
                 result = self._parse_response(response)
 
-                if result.get("code") != self.success_code:
-                    return stt.SpeechResult(
-                        text=None, result=stt.SpeechResultState.ERROR
-                    )
+                if result.get("code") != self._success_code:
+                    return SpeechResult(None, SpeechResultState.ERROR)
 
                 # Process audio chunks
                 async for chunk in stream:
@@ -183,18 +199,14 @@ class VolcanoSttProvider(stt.Provider):
                     response = await ws.recv()
                     result = self._parse_response(response)
 
-                    if result.get("code") != self.success_code:
-                        return stt.SpeechResult(
-                            text=None, result=stt.SpeechResultState.ERROR
-                        )
+                    if result.get("code") != self._success_code:
+                        return SpeechResult(None, SpeechResultState.ERROR)
 
                 # Get final result
                 if "text" in result:
-                    return stt.SpeechResult(
-                        text=result["text"], result=stt.SpeechResultState.SUCCESS
-                    )
+                    return SpeechResult(result["text"], SpeechResultState.SUCCESS)
 
         except Exception as err:
-            return stt.SpeechResult(text=None, result=stt.SpeechResultState.ERROR)
+            return SpeechResult(None, SpeechResultState.ERROR)
 
-        return stt.SpeechResult(text=None, result=stt.SpeechResultState.ERROR)
+        return SpeechResult(None, SpeechResultState.ERROR)
