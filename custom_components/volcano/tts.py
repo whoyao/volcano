@@ -16,9 +16,9 @@ from homeassistant.core import callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
-    API_ENDPOINT,
     CONF_ACCESS_TOKEN,
     CONF_APPID,
+    CONF_HOST,
     CONF_TTS_CLUSTER,
     CONF_VOICE_TYPE,
     DOMAIN,
