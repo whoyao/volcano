@@ -77,12 +77,12 @@ class VolcanoSpeechToTextEntity(SpeechToTextEntity):
     @property
     def supported_formats(self) -> list[AudioFormats]:
         """Return a list of supported formats."""
-        return [AudioFormats.WAV, AudioFormats.MP3]
+        return [AudioFormats.WAV, AudioFormats.OGG]
 
     @property
     def supported_codecs(self) -> list[AudioCodecs]:
         """Return a list of supported codecs."""
-        return [AudioCodecs.PCM]
+        return [AudioCodecs.PCM, AudioCodecs.OPUS]
 
     @property
     def supported_bit_rates(self) -> list[AudioBitRates]:
@@ -115,6 +115,10 @@ class VolcanoSpeechToTextEntity(SpeechToTextEntity):
 
     def _construct_request(self, metadata: SpeechMetadata) -> dict[str, Any]:
         """Construct the request payload."""
+        codec = metadata.codec.value
+        if metadata.codec == AudioCodecs.PCM:
+            codec = "raw"
+
         return {
             "app": {
                 "appid": self._entry.data[CONF_APPID],
@@ -137,7 +141,7 @@ class VolcanoSpeechToTextEntity(SpeechToTextEntity):
                 "language": metadata.language,
                 "bits": metadata.bit_rate,
                 "channel": metadata.channel,
-                "codec": metadata.codec.value,
+                "codec": codec,
             },
         }
 

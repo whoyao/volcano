@@ -7,4 +7,5 @@ custom_components/tts
 custom_components/tts_http_demo.py
 custom_components/tts_websocket_demo.py
 custom_components/wyoming
+custom_components/extended_openai_conversation
 *.mp3
