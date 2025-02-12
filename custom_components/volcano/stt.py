@@ -43,12 +43,40 @@ async def async_setup_entry(
 
 # Protocol constants
 PROTOCOL_VERSION = 0b0001
+DEFAULT_HEADER_SIZE = 0b0001
+
+PROTOCOL_VERSION_BITS = 4
+HEADER_BITS = 4
+MESSAGE_TYPE_BITS = 4
+MESSAGE_TYPE_SPECIFIC_FLAGS_BITS = 4
+MESSAGE_SERIALIZATION_BITS = 4
+MESSAGE_COMPRESSION_BITS = 4
+RESERVED_BITS = 8
+
+# Message Type:
 CLIENT_FULL_REQUEST = 0b0001
 CLIENT_AUDIO_ONLY_REQUEST = 0b0010
-NO_SEQUENCE = 0b0000
+SERVER_FULL_RESPONSE = 0b1001
+SERVER_ACK = 0b1011
+SERVER_ERROR_RESPONSE = 0b1111
+
+# Message Type Specific Flags
+NO_SEQUENCE = 0b0000  # no check sequence
+POS_SEQUENCE = 0b0001
 NEG_SEQUENCE = 0b0010
-JSON_SERIALIZATION = 0b0001
-GZIP_COMPRESSION = 0b0001
+NEG_SEQUENCE_1 = 0b0011
+
+# Message Serialization
+NO_SERIALIZATION = 0b0000
+JSON = 0b0001
+THRIFT = 0b0011
+CUSTOM_TYPE = 0b1111
+
+# Message Compression
+NO_COMPRESSION = 0b0000
+GZIP = 0b0001
+CUSTOM_COMPRESSION = 0b1111
+
 
 class VolcanoSpeechToTextEntity(SpeechToTextEntity):
     """Volcano speech-to-text entity."""
@@ -147,20 +175,43 @@ class VolcanoSpeechToTextEntity(SpeechToTextEntity):
 
     def _parse_response(self, res: bytes) -> dict[str, Any]:
         """Parse server response."""
+        protocol_version = res[0] >> 4
         header_size = res[0] & 0x0f
         message_type = res[1] >> 4
+        message_type_specific_flags = res[1] & 0x0f
+        serialization_method = res[2] >> 4
         message_compression = res[2] & 0x0f
+        reserved = res[3]
+        header_extensions = res[4:header_size * 4]
         payload = res[header_size * 4:]
-
-        if message_compression == GZIP_COMPRESSION:
-            payload = gzip.decompress(payload)
-
-        if message_type == 0x09:  # SERVER_FULL_RESPONSE
+        result = {}
+        payload_msg = None
+        payload_size = 0
+        if message_type == SERVER_FULL_RESPONSE:
             payload_size = int.from_bytes(payload[:4], "big", signed=True)
             payload_msg = payload[4:]
-            return json.loads(payload_msg.decode("utf-8"))
-
-        return {}
+        elif message_type == SERVER_ACK:
+            seq = int.from_bytes(payload[:4], "big", signed=True)
+            result['seq'] = seq
+            if len(payload) >= 8:
+                payload_size = int.from_bytes(payload[4:8], "big", signed=False)
+                payload_msg = payload[8:]
+        elif message_type == SERVER_ERROR_RESPONSE:
+            code = int.from_bytes(payload[:4], "big", signed=False)
+            result['code'] = code
+            payload_size = int.from_bytes(payload[4:8], "big", signed=False)
+            payload_msg = payload[8:]
+        if payload_msg is None:
+            return result
+        if message_compression == GZIP:
+            payload_msg = gzip.decompress(payload_msg)
+        if serialization_method == JSON:
+            payload_msg = json.loads(str(payload_msg, "utf-8"))
+        elif serialization_method != NO_SERIALIZATION:
+            payload_msg = str(payload_msg, "utf-8")
+        result['payload_msg'] = payload_msg
+        result['payload_size'] = payload_size
+        return result
 
     async def async_process_audio_stream(
         self, metadata: SpeechMetadata, stream: AsyncIterable[bytes]
@@ -176,7 +227,7 @@ class VolcanoSpeechToTextEntity(SpeechToTextEntity):
             full_request.extend(len(payload).to_bytes(4, "big"))
             full_request.extend(payload)
 
-            headers = {"Authorization": f"Bearer; {self._entry.data[CONF_ACCESS_TOKEN]}"}
+            headers = {"Authorization": f"Bearer {self._entry.data[CONF_ACCESS_TOKEN]}"}
 
             async with websockets.connect(
                 self._ws_url, additional_headers=headers, max_size=1000000000
@@ -185,32 +236,57 @@ class VolcanoSpeechToTextEntity(SpeechToTextEntity):
                 await ws.send(full_request)
                 response = await ws.recv()
                 result = self._parse_response(response)
-
-                if result.get("code") != self._success_code:
+                
+                if 'payload_msg' not in result:
                     return SpeechResult(None, SpeechResultState.ERROR)
 
+                if result['payload_msg']['code'] != self._success_code:
+                    return SpeechResult(None, SpeechResultState.ERROR)
+
+                last_chunk = None
                 # Process audio chunks
                 async for chunk in stream:
-                    payload = gzip.compress(chunk)
-                    audio_request = bytearray(
-                        self._generate_header(
-                            message_type=CLIENT_AUDIO_ONLY_REQUEST,
-                            message_type_specific_flags=NEG_SEQUENCE,
+                    if last_chunk is not None:
+                        payload = gzip.compress(last_chunk)
+                        audio_request = bytearray(
+                            self._generate_header(
+                                message_type=CLIENT_AUDIO_ONLY_REQUEST
+                            )
                         )
+                        audio_request.extend(len(payload).to_bytes(4, "big"))
+                        audio_request.extend(payload)
+
+                        await ws.send(audio_request)
+
+                        res = await ws.recv()
+                        result = parse_response(res)
+                        if 'payload_msg' in result and result['payload_msg']['code'] != self.success_code:
+                            return SpeechResult(None, SpeechResultState.ERROR)
+
+                    last_chunk = chunk
+
+                payload = gzip.compress(last_chunk)
+                audio_request = bytearray(
+                    self._generate_header(
+                        message_type=CLIENT_AUDIO_ONLY_REQUEST,
+                        message_type_specific_flags=NEG_SEQUENCE
                     )
-                    audio_request.extend(len(payload).to_bytes(4, "big"))
-                    audio_request.extend(payload)
+                )
+                audio_request.extend(len(payload).to_bytes(4, "big"))
+                audio_request.extend(payload)
 
-                    await ws.send(audio_request)
-                    response = await ws.recv()
-                    result = self._parse_response(response)
+                await ws.send(audio_request)
 
-                    if result.get("code") != self._success_code:
-                        return SpeechResult(None, SpeechResultState.ERROR)
+                res = await ws.recv()
+                result = parse_response(res)
+                if 'payload_msg' in result and result['payload_msg']['code'] != self.success_code:
+                    return SpeechResult(None, SpeechResultState.ERROR)
 
-                # Get final result
-                if "text" in result:
-                    return SpeechResult(result["text"], SpeechResultState.SUCCESS)
+                if "payload_msg" not in result or "text" not in result["payload_msg"]:
+                    return SpeechResult(None, SpeechResultState.ERROR)
+                    
+                return SpeechResult(result["payload_msg"]["text"], SpeechResultState.SUCCESS)
+
 
         except Exception as err:
             return SpeechResult(None, SpeechResultState.ERROR)
