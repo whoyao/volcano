@@ -29,7 +29,7 @@ from .const import (
     CONF_ACCESS_TOKEN,
     CONF_APPID,
     CONF_STT_CLUSTER,
-    DEFAULT_HOST,
+    CONF_HOST,
     DOMAIN,
 )
 
@@ -50,7 +50,7 @@ NEG_SEQUENCE = 0b0010
 JSON_SERIALIZATION = 0b0001
 GZIP_COMPRESSION = 0b0001
 
-class VolcanoSpeechToTextEntity(stt.SpeechToTextEntity):
+class VolcanoSpeechToTextEntity(SpeechToTextEntity):
     """Volcano speech-to-text entity."""
 
     def __init__(self, entry: ConfigEntry) -> None:
@@ -64,7 +64,9 @@ class VolcanoSpeechToTextEntity(stt.SpeechToTextEntity):
             entry_type=dr.DeviceEntryType.SERVICE,
         )
         self._entry = entry
-        self._ws_url = f"wss://{DEFAULT_HOST}/api/v2/asr"
+        # f"wss://{self._entry.data[CONF_HOST]}/api/v2/asr"
+        # self._ws_url = f"wss://{DEFAULT_HOST}/api/v2/asr"
+        self._ws_url = f"wss://{self._entry.data[CONF_HOST]}/api/v2/asr"
         self._success_code = 1000
 
     @property

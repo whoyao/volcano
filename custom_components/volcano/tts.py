@@ -108,7 +108,7 @@ class VolcanoTtsProvider(tts.TextToSpeechEntity):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    API_ENDPOINT,
+                    f"https://{self.config_entry.data[CONF_HOST]}/api/v1/tts",
                     json=request_data,
                     headers=headers,
                 ) as response:
